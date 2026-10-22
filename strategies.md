@@ -1,6 +1,10 @@
 1. Paralelizamos a execução do cálculo do next grid por linha, dividindo o número de linhas para o número de threads disponíveis executarem em paralelo.
+![alt text](image.png)
 2. Foi observado que nessa solução inicial, as entradas de teste cedidas eram tão pequenas que o overhead de gerenciamento das threads era maior do que a rapidez ganhada pelo paralelismo, causando um speedup menor que 1, então, geramos entradas de teste bem maiores.
 3. Agora, com uma entrada de teste maior (life-6.in), foi observado um speedup de 3.36
+4. Tweak no tamanho do chunk do schedule()
+com static: 2.527s
+com dynamic chunkSize 15: 2.054
 
 # Para testar
 1. Paralelizar por coluna. Testar qtd de threads, quantas colunas para cada thread, se há uma razão calculável que sempre seja boa
