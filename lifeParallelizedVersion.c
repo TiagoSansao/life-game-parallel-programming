@@ -115,7 +115,7 @@ void next_generation(
     int rows,
     int cols)
 {
-#pragma omp parallel for
+  #pragma omp parallel for
   for (int row = 0; row < rows; row++)
   {
     for (int col = 0; col < cols; col++)
