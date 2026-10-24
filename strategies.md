@@ -17,13 +17,13 @@ Ao dividir o trabalho por colunas, cada thread acessa a memória com esse passo 
 ## 1. ideia
 Esse teste consiste em mudar a estrutura do código para extrair maior eficiencia da paralelização. Nesse caso, mudamos a lógica para que o programa guardasse uma "Cache" com as celulas vivas, e fizesse as gerações e avaliações apenas nessas celulas e nas suas vizinhas, com o objetivo de eliminar analises desnecessárias.
 ## 2 - Implementação da cache 
-Para o desenvolvimento da ideia, primeiramente foi implementado a struct `AliveCache`, contendo:
-`alives` - Vetor que mantem as celulas vivas atuais
-`next_alives` - Vetor que receberá as celulas que estarão vivas na proxima geração
-`candidates` - Lista de celulas que serão avaliadas
-`marked` - Flag para verificar se a celula já foi analisada na geração
-`thread_buffers` - Buffers privados de cada thread OpenMP para escrita sem lock
-`count` - Contador de quantas celulas vivas tem em alive
+Para o desenvolvimento da ideia, primeiramente foi implementado a struct `AliveCache`, contendo: </br>
+`alives` - Vetor que mantem as celulas vivas atuais</br>
+`next_alives` - Vetor que receberá as celulas que estarão vivas na proxima geração</br>
+`candidates` - Lista de celulas que serão avaliadas</br>
+`marked` - Flag para verificar se a celula já foi analisada na geração</br>
+`thread_buffers` - Buffers privados de cada thread OpenMP para escrita sem lock</br>
+`count` - Contador de quantas celulas vivas tem em alive</br>
 
 Essa estrutura ajudou a deixar o código mais organizado para a implementação. Ela é inicializada no inicio do main e recebe os parametros iniciais antes do começo do jogo.
 
