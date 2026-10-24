@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <omp.h>
 
 #define MAX_RULE_LEN 32
 
@@ -11,12 +12,28 @@ typedef struct
 } Rule;
 
 /*
+ * Estrutura para manter a cache de celulas vivas
+ * e os buffers necessarios para o calculo paralelo.
+ */
+
+typedef struct
+{
+  int *alives;          // array de alives atuais
+  int *next_alives;     // array de alives da proxima generation
+  int *candidates;      // celulas que serão calculadas
+  int *marked;          // flag para saber qual já foi gerada e não ocorrer mais de uma na mesma celula
+  int **thread_buffers; 
+  int count;            // quantidade de alives atuais
+} AliveCache;
+
+/*
  * Converte uma regra no formato B3/S23, B36/S23, etc.
  * para dois vetores booleanos:
  *
  * birth[n]    = 1 se uma célula morta nasce com n vizinhos
  * survival[n] = 1 se uma célula viva sobrevive com n vizinhos
  */
+
 void parse_rule(const char *text, Rule *rule)
 {
   int i;
@@ -61,6 +78,7 @@ void parse_rule(const char *text, Rule *rule)
  * A grade não é toroidal:
  * posições fora da matriz são simplesmente ignoradas.
  */
+
 int count_neighbors(
     const char *grid,
     int rows,
@@ -105,25 +123,74 @@ int count_neighbors(
  * Todos os novos estados são escritos em next.
  *
  * Isso garante a evolução síncrona.
+ *
+ * Otimização: processa apenas as células vivas e suas vizinhas (candidatos),
+ * paralelizado com OpenMP.
  */
+
 void next_generation(
-    const char *current,
+    char *current,
     char *next,
+    AliveCache *cache,
     const int *rule_matrix,
     const Rule *rules,
     int rows,
-    int cols)
+    int cols,
+    int generation)
 {
-  for (int row = 0; row < rows; row++)
+  // identifica as celulas candidatas 
+  int candidate_count = 0;
+
+  for (int i = 0; i < cache->count; i++)
   {
-    for (int col = 0; col < cols; col++)
+    int pos = cache->alives[i];
+    int row = pos / cols;
+    int col = pos % cols;
+
+    // examina as linhas da celula
+    for (int dr = -1; dr <= 1; dr++)
     {
+      int nr = row + dr;
+      if (nr < 0 || nr >= rows)
+        continue;
 
-      int pos = row * cols + col;
+      int row_init = nr * cols;
 
-      int neighbors =
-          count_neighbors(current, rows, cols, row, col);
+      for (int dc = -1; dc <= 1; dc++)
+      {
+        int nc = col + dc;
+        if (nc >= 0 && nc < cols)
+        {
+          int p = row_init + nc;
 
+          // para evitar guardar a mesma celula novamente
+          if (cache->marked[p] != generation)
+          {
+            cache->marked[p] = generation;
+            cache->candidates[candidate_count++] = p;
+          }
+        }
+      }
+    }
+  }
+
+  // avalia as celulas candidatas
+  int next_alive_count = 0;
+
+  #pragma omp parallel
+  {
+    int tid = omp_get_thread_num();
+    int *local_alives = cache->thread_buffers[tid];
+    int local_count = 0;
+
+    #pragma omp for nowait schedule(static)
+    for (int i = 0; i < candidate_count; i++)
+    {
+      int pos = cache->candidates[i];
+      int row = pos / cols;
+      int col = pos % cols;
+
+      int neighbors = count_neighbors(current, rows, cols, row, col);
       int rule_id = rule_matrix[pos];
 
       if (current[pos] == 'x')
@@ -135,10 +202,7 @@ void next_generation(
         if (rules[rule_id].survival[neighbors])
         {
           next[pos] = 'x';
-        }
-        else
-        {
-          next[pos] = ' ';
+          local_alives[local_count++] = pos;
         }
       }
       else
@@ -150,14 +214,35 @@ void next_generation(
         if (rules[rule_id].birth[neighbors])
         {
           next[pos] = 'x';
-        }
-        else
-        {
-          next[pos] = ' ';
+          local_alives[local_count++] = pos;
         }
       }
     }
+
+    // junção das celulas vivas de cada thread no vetor global
+    int offset;
+    #pragma omp atomic capture
+    {
+      offset = next_alive_count;
+      next_alive_count += local_count;
+    }
+
+    memcpy(&cache->next_alives[offset], local_alives, local_count * sizeof(int));
   }
+
+  // limpa no buffer 'current' as células que eram vivas nesta geração
+  #pragma omp parallel for schedule(static)
+  for (int i = 0; i < cache->count; i++)
+  {
+    current[cache->alives[i]] = ' ';
+  }
+
+  // 4. Atualiza a contagem e inverte os ponteiros de vivas da cache
+  cache->count = next_alive_count;
+
+  int *temp_alives = cache->alives;
+  cache->alives = cache->next_alives;
+  cache->next_alives = temp_alives;
 }
 
 int main(void)
@@ -266,7 +351,25 @@ int main(void)
   char *current = malloc(total_cells * sizeof(char));
   char *next = malloc(total_cells * sizeof(char));
 
-  if (current == NULL || next == NULL)
+  // Inicialização da cache de células vivas
+  AliveCache cache;
+  cache.alives = malloc(total_cells * sizeof(int));
+  cache.next_alives = malloc(total_cells * sizeof(int));
+  cache.candidates = malloc(total_cells * sizeof(int));
+  cache.marked = malloc(total_cells * sizeof(int));
+  cache.count = 0;
+
+  int max_threads = omp_get_max_threads();
+  cache.thread_buffers = malloc(max_threads * sizeof(int *));
+  for (int t = 0; t < max_threads; t++)
+  {
+    cache.thread_buffers[t] = malloc(total_cells * sizeof(int));
+  }
+
+  if (current == NULL || next == NULL ||
+      cache.alives == NULL || cache.next_alives == NULL ||
+      cache.candidates == NULL || cache.marked == NULL ||
+      cache.thread_buffers == NULL)
   {
     fprintf(stderr, "Erro de alocacao de memoria.\n");
 
@@ -277,6 +380,9 @@ int main(void)
 
     return 1;
   }
+
+  memset(next, ' ', total_cells * sizeof(char));
+  memset(cache.marked, -1, total_cells * sizeof(int));
 
   /*
    * Como espaços são significativos, não podemos usar scanf("%s").
@@ -321,14 +427,16 @@ int main(void)
      */
     for (int col = 0; col < C; col++)
     {
+      int pos = row * C + col;
 
       if (line[col] == 'x' || line[col] == 'X')
       {
-        current[row * C + col] = 'x';
+        current[pos] = 'x';
+        cache.alives[cache.count++] = pos;
       }
       else
       {
-        current[row * C + col] = ' ';
+        current[pos] = ' ';
       }
     }
   }
@@ -349,10 +457,12 @@ int main(void)
     next_generation(
         current,
         next,
+        &cache,
         rule_matrix,
         rules,
         L,
-        C);
+        C,
+        generation);
 
     char *temp = current;
     current = next;
@@ -373,6 +483,17 @@ int main(void)
 
     putchar('\n');
   }
+
+  // Liberação de memória
+  for (int t = 0; t < max_threads; t++)
+  {
+    free(cache.thread_buffers[t]);
+  }
+  free(cache.thread_buffers);
+  free(cache.alives);
+  free(cache.next_alives);
+  free(cache.candidates);
+  free(cache.marked);
 
   free(current);
   free(next);
