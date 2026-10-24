@@ -1,7 +1,11 @@
 # Paralelização por Linha
 1. Paralelizamos a execução do cálculo do next grid por linha, dividindo o número de linhas para o número de threads disponíveis executarem em paralelo.
+![alt text](image.png)
 2. Foi observado que nessa solução inicial, as entradas de teste cedidas eram tão pequenas que o overhead de gerenciamento das threads era maior do que a rapidez ganhada pelo paralelismo, causando um speedup menor que 1, então, geramos entradas de teste bem maiores.
 3. Agora, com uma entrada de teste maior (life-6.in), foi observado um speedup de 3.36
+4. Tweak no tamanho do chunk do schedule()
+com static: 2.527s
+com dynamic chunkSize 15: 2.054
 
 # Paralelização por Coluna
 1. Agora, paralelizamos o cálculo do next grid por coluna, utilizando a mesma divisão de threads que a estratégia anterior.
@@ -42,7 +46,7 @@ Utilizamos do OpenMP para paralelizar, principalmente, a analise das celulas em 
 5. Por fim, para efetuar a limpeza do buffer `alives` de forma veloz, foi utilizado a paralelização com a clausula `schedule(static)`, para que cada thread limpe partes iguais do vetor.
 
 ### 3. Conclusão
-1. Essa estratégia foi a que apresentou os melhores resultados entre todas as testadas, pois uniu uma grande redução algorítmica (processar apenas células ativas em vez da matriz inteira) com um modelo de paralelismo sem contenção de travas (lock-free com buffers privados e `atomic capture`).
+1. Essa estratégia foi a que apresentou os melhores resultados entre todas as testadas, pois uniu uma grande redução de trabalho, processando apenas células ativas em vez da matriz inteira, com um modelo de paralelismo sem contenção de travas e disputa por recursos.
 2. Com entradas maiores, a diferença de desempenho se tornou ainda mais evidente. Enquanto as versões anteriores calculavam toda a grade L x C a cada geração, esta solução escala apenas com a quantidade de células ativas, eliminando o tráfego desnecessário de memória.
 3. No teste com o arquivo `life-6.in`, foi observado um speedup de **8.59** (com picos de **9.66**) em relação à versão serial, sendo cerca de **3.5x** mais rápido que a paralelização por linha.
 4. No teste com o arquivo mais pesado (`life-7.in`), foi anotado um speedup de **14.96** (com picos de **17.13**) em relação ao serial, superando em mais de **6x** a versão paralelizada por linha.
