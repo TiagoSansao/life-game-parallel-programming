@@ -1,4 +1,8 @@
-# Paralelização por Linha
+# Execução do programa
+
+
+# Estratégias testadas, em ordem cronologica
+## Paralelização por Linha
 1. Paralelizamos a execução do cálculo do next grid por linha, dividindo o número de linhas para o número de threads disponíveis executarem em paralelo.
 ![alt text](image.png)
 2. Foi observado que nessa solução inicial, as entradas de teste cedidas eram tão pequenas que o overhead de gerenciamento das threads era maior do que a rapidez ganhada pelo paralelismo, causando um speedup menor que 1, então, geramos entradas de teste bem maiores.
@@ -7,7 +11,7 @@
 com static: 2.527s
 com dynamic chunkSize 15: 2.054
 
-# Paralelização por Coluna
+## Paralelização por Coluna
 1. Agora, paralelizamos o cálculo do next grid por coluna, utilizando a mesma divisão de threads que a estratégia anterior.
 2. Observamos uma diminuição drástica no desempenho em comparação com a paralelização por linha, e um aumento timido comparando com a versão serial. Essa diminuição vem por conta do layout de memória da grade, armazenada em ordem row-major, conforme a indexação grid[row * cols + col]. Assim, Células de uma mesma linha ocupam posições contíguas na memória, enquanto células de uma mesma coluna estão separadas por um passo (stride) de cols elementos.
 Ao dividir o trabalho por colunas, cada thread acessa a memória com esse passo grande. Cada cache line (64 bytes) carregada é aproveitada em poucos bytes, o que aumenta o tráfego de memória e os cache misses.
