@@ -50,12 +50,3 @@ Utilizamos do OpenMP para paralelizar, principalmente, a analise das celulas em 
 2. Com entradas maiores, a diferença de desempenho se tornou ainda mais evidente. Enquanto as versões anteriores calculavam toda a grade L x C a cada geração, esta solução escala apenas com a quantidade de células ativas, eliminando o tráfego desnecessário de memória.
 3. No teste com o arquivo `life-6.in`, foi observado um speedup de **8.59** (com picos de **9.66**) em relação à versão serial, sendo cerca de **3.5x** mais rápido que a paralelização por linha.
 4. No teste com o arquivo mais pesado (`life-7.in`), foi anotado um speedup de **14.96** (com picos de **17.13**) em relação ao serial, superando em mais de **6x** a versão paralelizada por linha.
-
-# Para testar
-1. Paralelizar por coluna. Testar qtd de threads, quantas colunas para cada thread, se há uma razão calculável que sempre seja boa
-
-2. Uma ideia é ter uma thread especializada para cada tipo de regra. Mas supondo que possa ter mais células de uma regra específica, devemos ter mais threads para essa regra. 
-
-3. Testar a possibilidade de armazenarmos um "cache" que tem células vivas a fim de não precisarmos em toda geração calcular todas as células possíveis da matriz. Ex.: só temos algumas células no canto superior direito, não precisamos calcular o canto inferior esquerdo.
-
-
