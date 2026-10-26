@@ -1,11 +1,13 @@
-CC=cc
-
-FLAGS=-O3
+CC ?= gcc
+CFLAGS ?= -O3
+CFLAGS += -fopenmp
 
 all: life
 
 life: life.c
-	$(CC) $(FLAGS) life.c -o life
+	$(CC) $(CFLAGS) life.c -o life
 
 clean:
-	rm life
+	rm -f life
+
+.PHONY: all clean
